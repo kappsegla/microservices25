@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -21,6 +22,7 @@ import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
@@ -28,9 +30,14 @@ import org.springframework.security.oauth2.server.authorization.config.annotatio
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
+import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -41,9 +48,10 @@ import java.util.UUID;
 @SpringBootApplication
 public class AuthserviceApplication {
 
-    //Todo: Add user registration
-    //Todo: Add client registration
-    //Todo: Don't create new keypair each start
+    //Todo: Add user registration instead of hard coded Inmemory user
+    //Todo: Add client registration instead of hardcoded client-id and secret
+    //Todo: Don't create new keypair each start, store in database and reuse
+    //Todo: Add Bean for custom OAuth2AuthorizationConsentService to persist consents
 
     public static void main(String[] args) {
         SpringApplication.run(AuthserviceApplication.class, args);
@@ -65,23 +73,38 @@ public class AuthserviceApplication {
     }
 
     @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        CorsConfiguration config = new CorsConfiguration();
+        config.addAllowedHeader("*");
+        config.addAllowedMethod("*");
+        config.addAllowedOrigin("http://localhost:8888"); // Your SPA's origin
+        config.setAllowCredentials(true);
+        source.registerCorsConfiguration("/**", config); // Apply to all paths on auth server
+        return source;
+    }
+
+
+    @Bean
     @Order(2)
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource) throws Exception {
         http.authorizeHttpRequests(authorize ->
                         authorize.anyRequest().authenticated())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .formLogin(Customizer.withDefaults());
         return http.build();
     }
 
     @Bean
     @Order(1)
-    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource) throws Exception {
         OAuth2AuthorizationServerConfigurer authorizationServerConfigurer =
                 OAuth2AuthorizationServerConfigurer.authorizationServer();
 
         http
                 // Apply security matcher to only handle authorization server endpoints
                 .securityMatcher(authorizationServerConfigurer.getEndpointsMatcher())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 // Apply the OAuth2 Authorization Server config
                 .with(authorizationServerConfigurer, authorizationServer -> authorizationServer
                         .tokenRevocationEndpoint(Customizer.withDefaults())
@@ -103,6 +126,21 @@ public class AuthserviceApplication {
 
     @Bean
     public RegisteredClientRepository registeredClientRepository(PasswordEncoder encoder) {
+        RegisteredClient spaClient = RegisteredClient.withId(UUID.randomUUID().toString())
+                .clientId("spa-client-id") // Matches CLIENT_ID in app.js
+                // .clientSecret(encoder.encode("spa-secret")) // REMOVE for public client
+                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE) // SET for public client
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .redirectUri("http://localhost:8888/callback.html") // Matches REDIRECT_URI in app.js
+                .scope(OidcScopes.OPENID)
+                .scope("read_resource")
+                .clientSettings(ClientSettings.builder()
+                        .requireProofKey(true) // PKCE is still required and enforced
+                        .requireAuthorizationConsent(false)
+                        .build())
+                .build();
+
         RegisteredClient client = RegisteredClient.withId(UUID.randomUUID().toString())
                 .clientId("client-id")
                 .clientSecret(encoder.encode("secret"))
@@ -112,10 +150,12 @@ public class AuthserviceApplication {
                 .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
                 .redirectUri("http://127.0.0.1:8080/login/oauth2/code/oidc-client")
                 .scope("read_resource")
-                .clientSettings(ClientSettings.builder().requireAuthorizationConsent(true).build())
+                .clientSettings(ClientSettings.builder()
+                        .requireAuthorizationConsent(true)
+                        .build())
                 .build();
 
-        return new InMemoryRegisteredClientRepository(client);
+        return new InMemoryRegisteredClientRepository(client, spaClient);
     }
 
 
@@ -155,5 +195,18 @@ public class AuthserviceApplication {
         return AuthorizationServerSettings.builder()
                 .issuer("http://localhost:9000")
                 .build();
+    }
+
+    @Bean
+    public OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer() {
+        return context -> {
+            if (context.getPrincipal() != null) {
+                var authorities = context.getPrincipal().getAuthorities().stream()
+                        .map(GrantedAuthority::getAuthority)
+                        .filter(role -> role.startsWith("ROLE_")) // eller ta alla
+                        .toList();
+                context.getClaims().claim("roles", authorities);
+            }
+        };
     }
 }
