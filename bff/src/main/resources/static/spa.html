@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SPA</title>
+</head>
+<body>
+<h1>Secure SPA</h1>
+
+<div id="auth">
+    <a href="/oauth2/authorization/my-auth-server">Login</a>
+</div>
+
+<div id="main" style="display: none;">
+    <button onclick="callSecure()">Call Secure Resource</button>
+    <pre id="output"></pre>
+</div>
+
+<script>
+    // Optionally detect if user is logged in
+    fetch('/api/proxy')
+        .then(response => {
+            if (response.status === 401 || response.redirected) {
+                document.getElementById('auth').style.display = 'block';
+            } else {
+                document.getElementById('auth').style.display = 'none';
+                document.getElementById('main').style.display = 'block';
+            }
+        });
+
+    async function callSecure() {
+        const response = await fetch('/api/proxy');
+        const text = await response.text();
+        document.getElementById('output').innerText = text;
+    }
+</script>
+</body>
+</html>

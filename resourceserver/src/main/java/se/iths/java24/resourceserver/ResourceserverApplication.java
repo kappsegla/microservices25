@@ -22,7 +22,7 @@ public class ResourceserverApplication {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource) throws Exception {
         http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource)) // Apply CORS configuration
+                //.cors(cors -> cors.configurationSource(corsConfigurationSource)) // Apply CORS configuration
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/secure").hasAuthority("SCOPE_read_resource") // Or just .authenticated()
                         .requestMatchers("/public").permitAll()

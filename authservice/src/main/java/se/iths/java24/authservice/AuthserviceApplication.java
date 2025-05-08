@@ -8,7 +8,6 @@ import com.nimbusds.jose.proc.SecurityContext;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -22,7 +21,6 @@ import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
@@ -79,6 +77,7 @@ public class AuthserviceApplication {
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
         config.addAllowedOrigin("http://localhost:8888"); // Your SPA's origin
+        config.addAllowedOrigin("http://localhost:9090"); // BFF's origin
         config.setAllowCredentials(true);
         source.registerCorsConfiguration("/**", config); // Apply to all paths on auth server
         return source;
@@ -136,9 +135,21 @@ public class AuthserviceApplication {
                 .scope(OidcScopes.OPENID)
                 .scope("read_resource")
                 .clientSettings(ClientSettings.builder()
-                        .requireProofKey(true) // PKCE is still required and enforced
+                        .requireProofKey(true) // PKCE is required and enforced
                         .requireAuthorizationConsent(false)
                         .build())
+                .build();
+
+        RegisteredClient bffClient = RegisteredClient.withId("bff-client") // Or UUID.randomUUID().toString()
+                .clientId("bff-client-id")
+                .clientSecret(encoder.encode("bff-client-secret")) // BFF needs a secret
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .redirectUri("http://localhost:9090/login/oauth2/code/my-auth-server") // BFF's callback URL
+                .scope(OidcScopes.OPENID) // For user info
+                .scope("read_resource")   // To access the resource server
+                .clientSettings(ClientSettings.builder().requireAuthorizationConsent(false).build()) // PKCE not strictly needed for confidential client but can be added
                 .build();
 
         RegisteredClient client = RegisteredClient.withId(UUID.randomUUID().toString())
@@ -149,13 +160,14 @@ public class AuthserviceApplication {
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
                 .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
                 .redirectUri("http://127.0.0.1:8080/login/oauth2/code/oidc-client")
+                .scope(OidcScopes.OPENID) // For user info
                 .scope("read_resource")
                 .clientSettings(ClientSettings.builder()
-                        .requireAuthorizationConsent(true)
+                        //.requireAuthorizationConsent(true)
                         .build())
                 .build();
 
-        return new InMemoryRegisteredClientRepository(client, spaClient);
+        return new InMemoryRegisteredClientRepository(client, bffClient, spaClient);
     }
 
 
@@ -178,8 +190,7 @@ public class AuthserviceApplication {
             KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
             keyPairGenerator.initialize(2048);
             keyPair = keyPairGenerator.generateKeyPair();
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             throw new IllegalStateException(ex);
         }
         return keyPair;
