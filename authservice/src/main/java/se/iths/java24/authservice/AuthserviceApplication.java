@@ -29,6 +29,7 @@ import org.springframework.security.oauth2.server.authorization.config.annotatio
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2RefreshTokenGenerator;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
@@ -118,7 +119,6 @@ public class AuthserviceApplication {
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login"))
                 );
-
         return http.build();
     }
 
@@ -130,7 +130,7 @@ public class AuthserviceApplication {
                 // .clientSecret(encoder.encode("spa-secret")) // REMOVE for public client
                 .clientAuthenticationMethod(ClientAuthenticationMethod.NONE) // SET for public client
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                //.authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN) // REMOVE for public client
                 .redirectUri("http://localhost:8888/callback.html") // Matches REDIRECT_URI in app.js
                 .scope(OidcScopes.OPENID)
                 .scope("read_resource")

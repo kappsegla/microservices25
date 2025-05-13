@@ -7,31 +7,46 @@
 <h1>Secure SPA</h1>
 
 <div id="auth">
-    <a href="/oauth2/authorization/my-auth-server">Login</a>
+    <a id="loginLink" href="/oauth2/authorization/my-auth-server">Login</a>
 </div>
 
 <div id="main" style="display: none;">
     <button onclick="callSecure()">Call Secure Resource</button>
+    <button onclick="logout()">Logout</button>
     <pre id="output"></pre>
 </div>
 
 <script>
-    // Optionally detect if user is logged in
-    fetch('/api/proxy')
-        .then(response => {
-            if (response.status === 401 || response.redirected) {
-                document.getElementById('auth').style.display = 'block';
-            } else {
-                document.getElementById('auth').style.display = 'none';
-                document.getElementById('main').style.display = 'block';
-            }
-        });
+    function showLoggedInUI() {
+        document.getElementById('auth').style.display = 'none';
+        document.getElementById('main').style.display = 'block';
+    }
+
+    function showLoggedOutUI() {
+        document.getElementById('auth').style.display = 'block';
+        document.getElementById('main').style.display = 'none';
+    }
+
+    async function checkLoginStatus() {
+        const response = await fetch('/api/proxy', { method: 'GET' });
+        if (response.status === 401 || response.redirected) {
+            showLoggedOutUI();
+        } else {
+            showLoggedInUI();
+        }
+    }
 
     async function callSecure() {
         const response = await fetch('/api/proxy');
         const text = await response.text();
         document.getElementById('output').innerText = text;
     }
+
+    function logout() {
+        window.location.href = "/logout";
+    }
+
+    checkLoginStatus();
 </script>
 </body>
 </html>

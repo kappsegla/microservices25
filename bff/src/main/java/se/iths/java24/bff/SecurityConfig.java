@@ -12,12 +12,21 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("spa.html", "/js/**","/error").permitAll()
+                        .requestMatchers("/spa.html", "/js/**", "/error").permitAll()
                         .anyRequest().authenticated()
                 )
-                .oauth2Login(Customizer.withDefaults())
+                //.oauth2Login(Customizer.withDefaults())
+                .oauth2Login(oauth2 -> oauth2
+                        .defaultSuccessUrl("/spa.html", true) // 👈 Force redirect here after login
+                )
+                .logout(logout -> logout
+                        .logoutSuccessUrl("/spa.html") // redirect to SPA after logout
+                        .invalidateHttpSession(true)
+                        .clearAuthentication(true)
+                )
                 .oauth2Client(Customizer.withDefaults());
 
         return http.build();
     }
+
 }
