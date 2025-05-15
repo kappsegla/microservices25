@@ -10,7 +10,7 @@ if ($p) {
     $projects | ForEach-Object -Parallel {
         Write-Host "Building image for $_..."
         Set-Location $_
-        mvn spring-boot:build-image
+        mvn -q --no-transfer-progress spring-boot:build-image
         Set-Location ..
     }
 } else {

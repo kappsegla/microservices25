@@ -11,7 +11,7 @@ for project in $projects; do
   echo "Building image for $project..."
 
   if [ "$parallel" = true ]; then
-    (cd "$project" && mvn spring-boot:build-image) &
+    (cd "$project" && mvn -q --no-transfer-progress spring-boot:build-image) &
   else
     (cd "$project" && mvn spring-boot:build-image)
   fi

@@ -6,7 +6,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -27,7 +26,6 @@ public class HelloController {
         List<String> headerNames = Collections.list(request.getHeaderNames());
 
         logger.info("Client IP: {} - Port: {}", clientIp, clientPort);
-        logger.info("Headers: {}", headerNames);
         logger.info("Forwarded-For: {}", request.getRemoteHost());
         logger.info("Forwarded-Port: {}", request.getRemotePort());
 
