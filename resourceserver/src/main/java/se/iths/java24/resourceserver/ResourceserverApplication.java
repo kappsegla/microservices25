@@ -28,6 +28,7 @@ public class ResourceserverApplication {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/secure").hasAuthority("SCOPE_read_resource") // Or just .authenticated()
                         .requestMatchers("/public").permitAll()
+                        .requestMatchers("/actuator/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));

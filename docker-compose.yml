@@ -1,15 +1,24 @@
 services:
   gateway:
     image: gateway:0.0.1-SNAPSHOT
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
     ports:
       - "8080:8081"
   resourceserver:
     image: resourceserver:0.0.1-SNAPSHOT
     environment:
       - SPRING_PROFILES_ACTIVE=docker
+    deploy:
+      replicas: 2
   auth:
     image: authservice:0.0.1-SNAPSHOT
     environment:
       - SPRING_PROFILES_ACTIVE=docker
     ports:
       - "9000:9000"
+  consul:
+    image: hashicorp/consul
+    ports:
+      - "8500:8500"
+    command: [ "consul", "agent", "-server","-dev", "-bootstrap", "-ui","-client=0.0.0.0" ]
